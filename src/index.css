@@ -148,6 +148,15 @@ body {
   --tw-prose-td-borders: var(--border-color);
 }
 
+/* Heading Border Feature */
+.show-heading-border h1,
+.show-heading-border h2,
+.show-heading-border h3 {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.3em;
+  margin-bottom: 0.5em;
+}
+
 /* Split Resizer */
 .resizer-h {
   width: 4px;

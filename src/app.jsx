@@ -17,11 +17,14 @@ export default function App() {
   const [theme, setTheme] = useLocalStorage('jm-theme', 'dark');
   const [isZenMode, setIsZenMode] = useState(false);
   const [editorWidth, setEditorWidth] = useLocalStorage('jm-editor-width', 50);
+  const [showHeadingBorder, setShowHeadingBorder] = useLocalStorage('jm-heading-border', false);
 
   const [debouncedContent, setDebouncedContent] = useState(content);
   const [activeTab, setActiveTab] = useState('edit');
   const [copyStatus, setCopyStatus] = useState('Copy HTML');
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const isResizing = useRef(false);
+  const menuRef = useRef(null);
 
   // Logic Resizing
   const startResizing = useCallback(() => {
@@ -41,7 +44,6 @@ export default function App() {
     (e) => {
       if (!isResizing.current) return;
       const newWidth = (e.clientX / window.innerWidth) * 100;
-      // Batasi lebar minimal 20% dan maksimal 80%
       if (newWidth > 15 && newWidth < 85) {
         setEditorWidth(newWidth);
       }
@@ -58,12 +60,27 @@ export default function App() {
     };
   }, [resize, stopResizing]);
 
-  // Sinkronisasi atribut data-theme ke elemen root
+  // Click outside listener for mobile menu
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (showMobileMenu && menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMobileMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMobileMenu]);
+
+  // Force Edit tab when entering Zen Mode
+  useEffect(() => {
+    if (isZenMode) setActiveTab('edit');
+  }, [isZenMode]);
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Implementasi Debounce 300ms sesuai Technical Guardrails di rules.md
+  // Implementasi Debounce 300ms
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedContent(content);
@@ -102,7 +119,6 @@ export default function App() {
     }
   }, [content]);
 
-  // Statistik (Phase 2)
   const stats = useMemo(
     () => ({
       chars: content.length,
@@ -112,79 +128,109 @@ export default function App() {
     [content],
   );
 
+  // Common button style
+  const btnStyle = (isActive) => ({
+    backgroundColor: isActive ? 'var(--accent)' : 'var(--bg-secondary)',
+    borderColor: 'var(--border-color)',
+    color: isActive ? 'var(--bg-primary)' : 'var(--text-primary)',
+    cursor: 'pointer',
+  });
+
   return (
     <div className="flex flex-col h-screen overflow-hidden transition-colors duration-300 font-sans" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Header / Toolbar */}
-      <header className="flex items-center justify-between px-4 py-2 border-b shadow-sm z-10 transition-colors duration-300" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
+      <header className="flex items-center justify-between px-4 py-2 border-b shadow-md z-30 transition-colors duration-300" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
         <div className="flex items-center gap-2">
-          <span className="text-xl font-bold tracking-tight" style={{ color: 'var(--accent)' }}>
+          {/* Logo */}
+          <span className="hidden sm:block text-xl font-bold tracking-tight" style={{ color: 'var(--accent)' }}>
             JustMarkdown
           </span>
+          <img src="/src/assets/logo.svg" alt="Logo" className="block sm:hidden w-8 h-8 object-contain" />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* Toggle Tab Mobile (Single Button) */}
+          <button onClick={() => setActiveTab(activeTab === 'edit' ? 'preview' : 'edit')} className="md:hidden text-[10px] px-3 py-1.5 rounded-lg transition border uppercase font-bold" style={btnStyle(true)}>
+            {activeTab === 'edit' ? 'PREVIEW' : 'EDIT'}
+          </button>
+
           <ThemeSwitcher theme={theme} setTheme={setTheme} />
 
-          <button
-            onClick={() => setIsZenMode(!isZenMode)}
-            className={`text-[10px] px-2 py-1 rounded transition border ${isZenMode ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}
-            style={{
-              backgroundColor: isZenMode ? 'var(--accent)' : 'var(--bg-secondary)',
-              borderColor: 'var(--border-color)',
-              color: isZenMode ? 'var(--bg-primary)' : 'var(--text-primary)',
-            }}
-          >
-            Zen Mode
-          </button>
-
-          {/* Ekspor Desktop */}
-          <div className="hidden sm:flex items-center gap-2 mr-2 border-r border-neutral-700 pr-3">
-            <button onClick={handleCopyHTML} className="text-[10px] px-2 py-1 hover:bg-neutral-700 text-neutral-400 hover:text-white rounded transition">
+          {/* Actions Desktoip */}
+          <div className="hidden md:flex items-center gap-2">
+            <button onClick={() => setIsZenMode(!isZenMode)} className="text-[10px] px-2 py-1 rounded transition border" style={btnStyle(isZenMode)}>
+              Zen Mode
+            </button>
+            <button onClick={() => setShowHeadingBorder(!showHeadingBorder)} className="text-[10px] px-2 py-1 rounded transition border" style={btnStyle(showHeadingBorder)}>
+              Border
+            </button>
+            <button onClick={handleCopyHTML} className="text-[10px] px-2 py-1 rounded transition border" style={btnStyle(false)}>
               {copyStatus}
             </button>
-            <button onClick={handleDownload} className="text-[10px] px-2 py-1 hover:bg-neutral-700 text-neutral-400 hover:text-white rounded transition">
+            <button onClick={handleDownload} className="text-[10px] px-2 py-1 rounded transition border" style={btnStyle(false)}>
               MD
             </button>
-            <button onClick={handleDownloadHTML} className="text-[10px] px-2 py-1 hover:bg-neutral-700 text-neutral-400 hover:text-white rounded transition">
+            <button onClick={handleDownloadHTML} className="text-[10px] px-2 py-1 rounded transition border" style={btnStyle(false)}>
               HTML
             </button>
-          </div>
-
-          {/* Mobile Tab Toggle */}
-          <div className="flex md:hidden bg-neutral-700 p-1 rounded-lg">
-            <button onClick={() => setActiveTab('edit')} className={`px-3 py-1 rounded-md text-sm transition-colors ${activeTab === 'edit' ? 'bg-neutral-600 text-white shadow-sm' : 'text-neutral-400'}`}>
-              Edit
-            </button>
-            <button onClick={() => setActiveTab('preview')} className={`px-3 py-1 rounded-md text-sm transition-colors ${activeTab === 'preview' ? 'bg-neutral-600 text-white shadow-sm' : 'text-neutral-400'}`}>
-              Preview
+            <button onClick={handleClear} className="text-[10px] px-2 py-1 rounded transition border border-red-900/30 hover:bg-red-900/40 text-red-400 cursor-pointer" style={{ backgroundColor: 'rgba(127, 29, 29, 0.1)' }}>
+              Clear
             </button>
           </div>
 
-          <button onClick={handleClear} className="text-xs px-3 py-1.5 bg-neutral-700 hover:bg-red-900/40 text-neutral-300 hover:text-red-200 rounded transition duration-200 border border-neutral-600 hover:border-red-900/50">
-            Clear
-          </button>
+          {/* Action Menu Mobile */}
+          <div ref={menuRef} className="md:hidden relative">
+            <button onClick={() => setShowMobileMenu(!showMobileMenu)} className="p-2 rounded-lg transition-colors border border-[var(--border-color)] cursor-pointer" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+            </button>
+
+            {showMobileMenu && (
+              <div className="absolute right-0 mt-2 w-48 rounded-xl shadow-2xl border border-[var(--border-color)] overflow-hidden z-[100] animate-in slide-in-from-top-2 duration-200" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                {[
+                  { label: copyStatus, onClick: handleCopyHTML },
+                  { label: 'Download MD', onClick: handleDownload },
+                  { label: 'Download HTML', onClick: handleDownloadHTML },
+                  { label: `Border: ${showHeadingBorder ? 'ON' : 'OFF'}`, onClick: () => setShowHeadingBorder(!showHeadingBorder) },
+                  { label: 'Clear All', onClick: handleClear, className: 'text-red-400' },
+                ].map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      item.onClick();
+                      setShowMobileMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-3 text-xs hover:bg-white/5 transition-colors border-b last:border-0 border-[var(--border-color)] ${item.className || ''}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* Main Area */}
       <main className="flex-1 flex overflow-hidden relative" style={{ '--editor-width': isZenMode ? '100%' : `${editorWidth}%` }}>
-        {/* Editor Pane */}
-        <div className={`h-full border-r border-neutral-800 transition-all duration-75 ease-out editor-pane ${activeTab === 'edit' ? 'flex' : 'hidden'} ${isZenMode ? 'px-[5%] sm:px-[15%] lg:px-[25%] bg-primary' : 'md:flex'}`}>
+        <div
+          className={`h-full border-r border-neutral-800 transition-all duration-75 ease-out editor-pane ${activeTab === 'edit' ? 'flex' : 'hidden'} ${isZenMode ? 'w-full px-[5%] sm:px-[15%] lg:px-[25%]' : 'md:flex'}`}
+          style={{ backgroundColor: isZenMode ? 'var(--bg-primary)' : 'transparent' }}
+        >
           <Editor value={content} onChange={setContent} />
         </div>
 
-        {/* Resizer - Hanya tampil di desktop dan bukan Zen Mode */}
         {!isZenMode && <div className="hidden md:block resizer-h" onMouseDown={startResizing} />}
 
-        {/* Preview Pane */}
         {!isZenMode && (
-          <div className={`h-full transition-all duration-75 ease-out preview-pane ${activeTab === 'preview' ? 'flex' : 'hidden'} md:flex overflow-hidden`}>
+          <div className={`h-full transition-all duration-75 ease-out preview-pane ${activeTab === 'preview' ? 'flex' : 'hidden'} md:flex overflow-hidden ${showHeadingBorder ? 'show-heading-border' : ''}`}>
             <Preview content={debouncedContent} />
           </div>
         )}
       </main>
 
-      {/* Footer Info */}
+      {/* Footer */}
       <footer
         className="px-4 py-1 text-[10px] border-t flex justify-between items-center font-mono transition-colors duration-300"
         style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
