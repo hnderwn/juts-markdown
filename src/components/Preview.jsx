@@ -5,7 +5,7 @@ import md from '../utils/markdownParser';
 /**
  * Komponen Preview untuk merender markdown menjadi HTML yang aman.
  */
-export default function Preview({ content }) {
+export default function Preview({ content, onPreviewMount, onScroll }) {
   const mermaidTimer = useRef(null);
   const mermaidRef = useRef(null);
 
@@ -50,6 +50,10 @@ export default function Preview({ content }) {
   return (
     <div
       id="markdown-preview"
+      ref={(el) => {
+        if (el && onPreviewMount) onPreviewMount(el);
+      }}
+      onScroll={(e) => onScroll && onScroll(e.target)}
       className="prose prose-sm sm:prose lg:prose-lg prose-invert max-w-none h-full w-full overflow-auto p-6 border-none transition-colors duration-300 relative"
       style={{
         backgroundColor: 'var(--bg-preview)',

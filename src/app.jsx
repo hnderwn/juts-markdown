@@ -7,6 +7,7 @@ import useLocalStorage from './hooks/useLocalStorage';
 import { downloadMarkdown, downloadHTML, copyToClipboard, calculateReadingTime } from './utils/exportUtils';
 import { renderMarkdown } from './utils/markdownParser';
 import DOMPurify from 'dompurify';
+import boilerplate from '../boilerplate.md?raw';
 
 /**
  * Komponen utama App JustMarkdown.
@@ -14,7 +15,7 @@ import DOMPurify from 'dompurify';
  */
 export default function App() {
   // Persistence (Phase 2 & 3)
-  const [content, setContent] = useLocalStorage('jm-draft', '# Just Markdown\n\nSelamat datang di Just Markdown!');
+  const [content, setContent] = useLocalStorage('jm-draft', boilerplate);
   const [theme, setTheme] = useLocalStorage('jm-theme', 'dark');
   const [isZenMode, setIsZenMode] = useState(false);
   const [editorWidth, setEditorWidth] = useLocalStorage('jm-editor-width', 50);
@@ -26,6 +27,9 @@ export default function App() {
   const [copyStatus, setCopyStatus] = useState('Copy HTML');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const isResizing = useRef(false);
+  const editorScrollDOM = useRef(null);
+  const previewScrollDOM = useRef(null);
+  const isSyncing = useRef(false);
 
   // Logic Resizing
   const startResizing = useCallback(() => {
@@ -118,6 +122,46 @@ export default function App() {
     [content],
   );
 
+  // Sync Scroll Logic (Optimized for smoothness)
+  const syncScroll = useCallback(
+    (source, target) => {
+      if (!source || !target || isSyncing.current || isZenMode) return;
+
+      isSyncing.current = true;
+
+      // Gunakan requestAnimationFrame untuk pergerakan yang mulus (60fps)
+      requestAnimationFrame(() => {
+        const scrollRatio = source.scrollTop / (source.scrollHeight - source.clientHeight);
+        const targetPos = scrollRatio * (target.scrollHeight - target.clientHeight);
+
+        // Hanya update jika ada perubahan signifikan untuk performa
+        if (Math.abs(target.scrollTop - targetPos) > 1) {
+          target.scrollTop = targetPos;
+        }
+
+        // Lepas lock di frame berikutnya
+        requestAnimationFrame(() => {
+          isSyncing.current = false;
+        });
+      });
+    },
+    [isZenMode],
+  );
+
+  const handleEditorScroll = useCallback(
+    (dom) => {
+      if (!isZenMode) syncScroll(dom, previewScrollDOM.current);
+    },
+    [isZenMode, syncScroll],
+  );
+
+  const handlePreviewScroll = useCallback(
+    (dom) => {
+      if (!isZenMode) syncScroll(dom, editorScrollDOM.current);
+    },
+    [isZenMode, syncScroll],
+  );
+
   return (
     <div className="flex flex-col h-full overflow-hidden transition-colors duration-300 font-sans" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       <Header
@@ -147,14 +191,14 @@ export default function App() {
           className={`h-full border-r border-neutral-800 transition-all duration-75 ease-out editor-pane ${activeTab === 'edit' ? 'flex' : 'hidden'} ${isZenMode ? 'w-full px-[5%] sm:px-[15%] lg:px-[25%]' : 'md:flex'}`}
           style={{ backgroundColor: isZenMode ? 'var(--bg-primary)' : 'transparent' }}
         >
-          <Editor value={content} onChange={setContent} />
+          <Editor value={content} onChange={setContent} onEditorMount={(dom) => (editorScrollDOM.current = dom)} onScroll={handleEditorScroll} />
         </div>
 
         {!isZenMode && <div className="hidden md:block resizer-h" onMouseDown={startResizing} />}
 
         {!isZenMode && (
           <div className={`h-full transition-all duration-75 ease-out preview-pane ${activeTab === 'preview' ? 'flex' : 'hidden'} md:flex overflow-hidden ${showHeadingBorder ? 'show-heading-border' : ''}`} data-spacing={spacing}>
-            <Preview content={debouncedContent} />
+            <Preview content={debouncedContent} onPreviewMount={(dom) => (previewScrollDOM.current = dom)} onScroll={handlePreviewScroll} />
           </div>
         )}
       </main>

@@ -68,7 +68,7 @@ const nordHighlightStyle = HighlightStyle.define([
  * @param {string} props.value - Konten markdown saat ini.
  * @param {Function} props.onChange - Callback saat konten berubah.
  */
-export default function Editor({ value, onChange }) {
+export default function Editor({ value, onChange, onScroll, onEditorMount }) {
   const editorRef = useRef(null);
   const viewRef = useRef(null);
 
@@ -99,7 +99,18 @@ export default function Editor({ value, onChange }) {
 
     viewRef.current = view;
 
+    if (onEditorMount) {
+      onEditorMount(view.scrollDOM);
+    }
+
+    const scrollHandler = () => {
+      if (onScroll) onScroll(view.scrollDOM);
+    };
+
+    view.scrollDOM.addEventListener('scroll', scrollHandler);
+
     return () => {
+      view.scrollDOM.removeEventListener('scroll', scrollHandler);
       view.destroy();
     };
   }, []);

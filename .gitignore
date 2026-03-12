@@ -25,3 +25,13 @@ dist-ssr
 
 # Markdown files
 *.md
+!README.md
+!boilerplate.md
+
+# Local env files
+.env
+*.local
+
+# OS files
+.DS_Store
+Thumbs.db
